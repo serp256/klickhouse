@@ -1,5 +1,6 @@
-use chrono::{Duration, Utc};
+use chrono::{Duration, Utc, TimeZone};
 use chrono_tz::{Tz, UTC};
+use futures::future::Lazy;
 
 use crate::{
     convert::{unexpected_type, FromSql, ToSql},
@@ -10,6 +11,7 @@ use crate::{
 /// Wrapper type for Clickhouse `Date` type.
 #[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd, Debug, Default)]
 pub struct Date(pub u16);
+
 
 impl ToSql for Date {
     fn to_sql(self) -> Result<Value> {
@@ -31,13 +33,15 @@ impl FromSql for Date {
 
 impl From<Date> for chrono::Date<Utc> {
     fn from(date: Date) -> Self {
-        chrono::MIN_DATE + Duration::days(date.0 as i64)
+        //chrono::MIN_DATE + Duration::days(date.0 as i64)
+        chrono::Date::from_utc(chrono::NaiveDate::default() + chrono::Duration::days(date.0 as i64),chrono::Utc)
     }
 }
 
 impl From<chrono::Date<Utc>> for Date {
     fn from(other: chrono::Date<Utc>) -> Self {
-        Self(other.signed_duration_since(chrono::MIN_DATE).num_days() as u16)
+        //Self(other.signed_duration_since(chrono::MIN_DATE).num_days() as u16)
+        Self((other.naive_utc() - chrono::NaiveDate::default()).num_days() as u16)
     }
 }
 
@@ -71,7 +75,9 @@ impl Default for DateTime {
 
 impl From<DateTime> for chrono::DateTime<Tz> {
     fn from(date: DateTime) -> Self {
-        chrono::MIN_DATETIME.with_timezone(&date.0) + Duration::seconds(date.1 as i64)
+        unimplemented!()
+        //chrono::MIN_DATETIME.with_timezone(&date.0) + Duration::seconds(date.1 as i64)
+
     }
 }
 
@@ -79,9 +85,7 @@ impl From<chrono::DateTime<Tz>> for DateTime {
     fn from(other: chrono::DateTime<Tz>) -> Self {
         Self(
             other.timezone(),
-            other
-                .signed_duration_since(chrono::MIN_DATETIME)
-                .num_seconds() as u32,
+            (other.naive_utc() - chrono::NaiveDateTime::default()).num_seconds() as u32
         )
     }
 }
@@ -90,10 +94,21 @@ impl From<chrono::DateTime<chrono::Utc>> for DateTime {
     fn from(other: chrono::DateTime<Utc>) -> Self {
         Self(
             chrono_tz::UTC,
-            other
+            (other.naive_utc() - chrono::NaiveDateTime::default()).num_seconds() as u32
+           /*  other
                 .signed_duration_since(chrono::MIN_DATETIME)
-                .num_seconds() as u32,
+                .num_seconds() as u32, */
         )
+    }
+}
+
+impl From<DateTime> for chrono::DateTime<Utc> {
+    fn from(date: DateTime) -> Self {
+        let native = chrono::NaiveDateTime::default() + chrono::Duration::seconds(date.1 as i64);
+        chrono::DateTime::<Tz>::from_utc(native,date.0.offset_from_utc_datetime(&native)).with_timezone(&chrono::Utc)
+        //date.0.
+        //chrono::MIN_DATETIME.with_timezone(&date.0) + Duration::seconds(date.1 as i64)
+
     }
 }
 
